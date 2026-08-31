@@ -1,0 +1,5 @@
+python/telegram_secret.json
+python/seen_houses.json
+python/cron.log
+__pycache__/
+*.pyc
