@@ -23,7 +23,7 @@ BASE_URL = "https://www.sinyi.com.tw"
 MAX_RETRIES = 10
 RETRY_DELAY_SECONDS = 60
 
-# (target dict的key, 網址片段後綴)，對照 SITES_REFERENCE.md 的「信義房屋參數對照」表
+# (target dict的key, 網址片段後綴)，對照 CONFIG_DETAIL.md 的「信義房屋參數對照」表
 FILTER_PARAM_MAP = [
     ("type", "-type"),
     ("price", "-price"),

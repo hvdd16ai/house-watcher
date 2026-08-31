@@ -49,7 +49,7 @@ function parse591Url_(url) {
   return { text: lines.join('\n'), warning: warning, configKey: 'HOUSE_591' };
 }
 
-// [網址片段後綴, target物件的key]，對照 SITES_REFERENCE.md 的「永慶房屋參數對照」表
+// [網址片段後綴, target物件的key]，對照 CONFIG_DETAIL.md 的「永慶房屋參數對照」表
 const YC_PARSE_SUFFIX_MAP = [
   ['_price', 'price'],
   ['_type', 'type'],
@@ -102,7 +102,7 @@ function parseYungchingUrl_(url) {
   return { text: lines.join('\n'), warning: null, configKey: 'YUNGCHING' };
 }
 
-// [網址片段後綴, target物件的key]，對照 SITES_REFERENCE.md 的「信義房屋參數對照」表
+// [網址片段後綴, target物件的key]，對照 CONFIG_DETAIL.md 的「信義房屋參數對照」表
 const SINYI_PARSE_SUFFIX_MAP = [
   ['-type', 'type'],
   ['-price', 'price'],

@@ -18,7 +18,7 @@ BASE_URL = "https://buy.yungching.com.tw"
 MAX_RETRIES = 10
 RETRY_DELAY_SECONDS = 60
 
-# (target dict的key, 網址片段後綴)，對照 SITES_REFERENCE.md 的「永慶房屋參數對照」表
+# (target dict的key, 網址片段後綴)，對照 CONFIG_DETAIL.md 的「永慶房屋參數對照」表
 FILTER_PARAM_MAP = [
     ("price", "_price"),
     ("type", "_type"),

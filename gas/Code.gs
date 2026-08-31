@@ -55,13 +55,17 @@ const YUNGCHING = [
     region: '新竹市-東區',
     min_rooms: 2,
 
-    // 以下是永慶網址上的原生篩選條件，格式對照 SITES_REFERENCE.md 的「永慶房屋參數對照」表，
+    // 以下是永慶網址上的原生篩選條件，格式對照 CONFIG_DETAIL.md 的「永慶房屋參數對照」表，
     // 不用可以全部留 null，不影響其他設定。
     price: null,        // 總價(萬)，格式 "最低-最高"，開放區間可留空一端，例如 "1000-" = 1000萬以上
     type: null,         // 型態，例如 "電梯大廈"、"華廈"、"透天別墅"
     rooms: null,        // 房數，格式同總價，例如 "2-2" = 剛好2房（跟上面的min_rooms是兩回事，見上方說明）
     area: null,         // 建坪(坪)，格式同總價，例如 "20-30"
     has_parking: null,  // 車位：true=有車位、false=無車位、null=不限
+
+    // ⚠️ 已知衝突：實測發現type+area+has_parking三個「同時」設定時，永慶網站會回傳404
+    // （其餘任意組合都正常，研判是該網站路由比對的問題）。三個都要用的話，改完記得
+    // 手動跑一次 checkNewListings 確認有抓到資料，抓不到就拿掉其中一個試試看。詳見 CONFIG_DETAIL.md。
   },
   // { region: '台北市-大安區', min_rooms: 2, price: null, type: null, rooms: null, area: null, has_parking: null },
 ];
@@ -76,7 +80,7 @@ const SINYI = [
     region: 'Hsinchu-city',
     min_rooms: 2,
 
-    // 以下是信義網址上的原生篩選條件，格式對照 SITES_REFERENCE.md 的「信義房屋參數對照」表，
+    // 以下是信義網址上的原生篩選條件，格式對照 CONFIG_DETAIL.md 的「信義房屋參數對照」表，
     // 不用可以全部留 null，不影響其他設定。
     type: null,   // 型態，拼音值，目前只驗證過 "dalou"(大樓)，其他型態代碼未確認
     price: null,  // 總價，格式 "最低-up"，例如 "1000-up" = 1000萬以上
@@ -304,7 +308,7 @@ function ycParseListings_(html) {
   return items;
 }
 
-// [target物件的key, 網址片段後綴]，對照 SITES_REFERENCE.md 的「永慶房屋參數對照」表
+// [target物件的key, 網址片段後綴]，對照 CONFIG_DETAIL.md 的「永慶房屋參數對照」表
 const YC_FILTER_PARAM_MAP = [
   ['price', '_price'],
   ['type', '_type'],
@@ -488,7 +492,7 @@ function sinyiParseListings_(html) {
   return items;
 }
 
-// [target物件的key, 網址片段後綴]，對照 SITES_REFERENCE.md 的「信義房屋參數對照」表
+// [target物件的key, 網址片段後綴]，對照 CONFIG_DETAIL.md 的「信義房屋參數對照」表
 const SINYI_FILTER_PARAM_MAP = [
   ['type', '-type'],
   ['price', '-price'],

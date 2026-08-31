@@ -106,7 +106,7 @@ cp telegram_secret.example.json telegram_secret.json
 
 **2. 搜尋條件**
 
-編輯 `config.py`，修改 `HOUSE_591`、`YUNGCHING`、`SINYI` 三組設定（預設為新竹市東區）。地區代碼與參數格式、網址解析工具（`parse_url.py`）使用範例，請參考 [`SITES_REFERENCE.md`](SITES_REFERENCE.md)。
+編輯 `config.py`，修改 `HOUSE_591`、`YUNGCHING`、`SINYI` 三組設定（預設為新竹市東區）。地區代碼與參數格式、網址解析工具（`parse_url.py`）使用範例，請參考 [`CONFIG_DETAIL.md`](CONFIG_DETAIL.md)。
 
 ### 執行
 
@@ -159,7 +159,7 @@ Windows 環境請改用「工作排程器」（Task Scheduler）設定定期執�
 
 ### 設定搜尋條件
 
-於 `Code.gs` 開頭修改 `HOUSE_591`、`YUNGCHING`、`SINYI` 設定，格式與 Python 版一致，說明見程式內註解與 [`SITES_REFERENCE.md`](SITES_REFERENCE.md)。
+於 `Code.gs` 開頭修改 `HOUSE_591`、`YUNGCHING`、`SINYI` 設定，格式與 Python 版一致，說明見程式內註解與 [`CONFIG_DETAIL.md`](CONFIG_DETAIL.md)。
 
 ### 執行與授權
 
@@ -211,7 +211,7 @@ Python 版位於 `config.py`，Apps Script 版位於 `Code.gs` 開頭，設定�
 ```
 house-watcher/
 ├── requirements.txt
-├── SITES_REFERENCE.md          # 各平台搜尋參數對照表
+├── CONFIG_DETAIL.md          # 各平台搜尋參數對照表
 ├── python/                     # Python 版
 │   ├── scraper.py                主流程：來源調度、去重、通知、資料儲存
 │   ├── house_591.py               591 資料擷取邏輯

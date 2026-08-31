@@ -39,7 +39,7 @@ def parse_591(url):
     return "\n".join(lines), warning
 
 
-# (網址片段後綴, target dict的key)，對照 SITES_REFERENCE.md 的「永慶房屋參數對照」表
+# (網址片段後綴, target dict的key)，對照 CONFIG_DETAIL.md 的「永慶房屋參數對照」表
 YUNGCHING_SUFFIX_MAP = [
     ("_price", "price"),
     ("_type", "type"),
@@ -80,7 +80,7 @@ def parse_yungching(url):
     return "\n".join(lines), None
 
 
-# (網址片段後綴, target dict的key)，對照 SITES_REFERENCE.md 的「信義房屋參數對照」表
+# (網址片段後綴, target dict的key)，對照 CONFIG_DETAIL.md 的「信義房屋參數對照」表
 SINYI_SUFFIX_MAP = [
     ("-type", "type"),
     ("-price", "price"),
