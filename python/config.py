@@ -12,6 +12,17 @@ ENABLED_SOURCES = {
 # True：連疑似重複的也通知(訊息裡一樣看不到重複標記，只是拿掉notify階段的過濾)。
 NOTIFY_DUPLICATES = False
 
+# 已經看過的物件如果降價了，要不要另外發一則「降價提醒」的Telegram通知(跟一般新物件通知分開)。
+# price一律都會更新進seen_houses.json，這個設定只影響要不要「推播」，邏輯跟NOTIFY_DUPLICATES一樣。
+# 注意：只有這次剛好又被抓到的物件才驗得到降價(通常是降價後排序被往前推、剛好在抓取範圍內)，
+# 不保證100%抓到每一次降價。
+NOTIFY_PRICE_DROPS = True
+
+# 排程正常執行、但這次完全沒有新物件也沒有降價時，要不要定期發一則「還活著」的心跳通知，
+# 避免排程默默壞掉卻不知道。HEARTBEAT_HOURS是最短間隔(小時)，避免每次執行都發。
+HEARTBEAT_ENABLED = False
+HEARTBEAT_HOURS = 24
+
 # 591房屋交易網(sale.591.com.tw)設定。HOUSE_591是清單，每一個dict是一組獨立的搜尋條件，會各自查完再合併結果。
 # 想同時搜多個「跨縣市」目標，在清單裡多加一組dict即可（跨縣市的逗號字串實測不可靠，見CONFIG_DETAIL.md）。
 # 同縣市內的多區則可以直接用sectionid逗號分隔（見下方註解）。

@@ -105,13 +105,15 @@ const Utilities = {
 
 const Logger = { log: (...args) => console.log(...args) };
 
+// ---- 用物件模擬 Script Properties(get/set都要支援，心跳功能會用到setProperty)----
+const scriptProps = {
+  TELEGRAM_BOT_TOKEN: secret.bot_token,
+  TELEGRAM_CHAT_ID: String(secret.chat_id),
+};
 const PropertiesService = {
   getScriptProperties: () => ({
-    getProperty: (key) => {
-      if (key === 'TELEGRAM_BOT_TOKEN') return secret.bot_token;
-      if (key === 'TELEGRAM_CHAT_ID') return String(secret.chat_id);
-      return null;
-    },
+    getProperty: (key) => (key in scriptProps ? scriptProps[key] : null),
+    setProperty: (key, value) => { scriptProps[key] = value; },
   }),
 };
 

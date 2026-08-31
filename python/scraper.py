@@ -14,6 +14,7 @@ import sinyi
 BASE_DIR = Path(__file__).resolve().parent
 SEEN_PATH = BASE_DIR / "seen_houses.json"
 TELEGRAM_SECRET_PATH = BASE_DIR / "telegram_secret.json"
+HEARTBEAT_PATH = BASE_DIR / "heartbeat_state.json"
 
 TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
 TAIPEI_TZ = timezone(timedelta(hours=8))
@@ -63,6 +64,33 @@ def find_new_listings(items, seen):
             new_items.append(item)
             seen_in_batch.add(key)
     return new_items
+
+
+def find_price_drops(items, seen):
+    """比對這次抓到的物件(不論新舊)跟seen裡記錄的價格，抓出降價的物件。
+    回傳 [(item, old_price), ...]。只有這次剛好被抓到、且總價比記錄的低才算，
+    不保證每次降價都能抓到(取決於排序有沒有把它推回抓取範圍內)。
+    """
+    drops = []
+    for item in items:
+        old_record = seen.get(item["key"])
+        if old_record is None:
+            continue
+        old_price = old_record.get("price")
+        new_price = item.get("price")
+        if old_price is not None and new_price is not None and new_price < old_price:
+            drops.append((item, old_price))
+    return drops
+
+
+def record_price_drops(seen, price_drops):
+    """把降價後的最新price/unitprice更新回seen_houses.json，不受NOTIFY_PRICE_DROPS影響(邏輯同NOTIFY_DUPLICATES)。"""
+    for item, _old_price in price_drops:
+        record = seen.get(item["key"])
+        if record is None:
+            continue
+        record["price"] = item.get("price")
+        record["unitprice"] = item.get("unitprice")
 
 
 def content_key(item):
@@ -151,6 +179,20 @@ def print_new_listings(new_items, duplicates_map):
         print()
 
 
+def print_price_drops(price_drops):
+    if not price_drops:
+        return
+    print(f"發現 {len(price_drops)} 筆降價物件：\n")
+    for item, old_price in price_drops:
+        label = SOURCE_LABELS.get(item.get("source"), item.get("source"))
+        name = item.get("community_name") or item.get("title")
+        print(f"【{label}】【{name}】💰 降價")
+        print(f"  地址：{item.get('address')}")
+        print(f"  總價：{old_price:,} → {item.get('show_price')}萬")
+        print(f"  網址：{item.get('url')}")
+        print()
+
+
 def build_telegram_caption(item, duplicate_of=None):
     label = SOURCE_LABELS.get(item.get("source"), item.get("source"))
     name = item.get("community_name") or item.get("title")
@@ -166,34 +208,64 @@ def build_telegram_caption(item, duplicate_of=None):
     return "\n".join(lines)
 
 
-def send_telegram_message(bot_token, chat_id, text):
+def build_price_drop_caption(item, old_price):
+    label = SOURCE_LABELS.get(item.get("source"), item.get("source"))
+    name = item.get("community_name") or item.get("title")
+    return "\n".join([
+        f"<b>💰 降價提醒 [{label}] {name}</b>",
+        f"地址：{item.get('address')}",
+        f"格局：{item.get('room')}　坪數：{item.get('area')}坪　屋齡：{item.get('houseage')}年",
+        f"總價：{old_price:,} → {item.get('show_price')}萬",
+        item.get("url"),
+    ])
+
+
+def _chat_ids(telegram_secret):
+    """chat_id可以是單一字串(一個人)，也可以是list(多人接收，各自都會收到)。"""
+    chat_id = telegram_secret["chat_id"]
+    return chat_id if isinstance(chat_id, list) else [chat_id]
+
+
+def send_telegram_message(bot_token, chat_ids, text):
+    """chat_ids可以是單一字串，也可以是list——是list就每個人都發一份。全部成功才回傳True。"""
+    if isinstance(chat_ids, str):
+        chat_ids = [chat_ids]
     url = TELEGRAM_API.format(token=bot_token, method="sendMessage")
-    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
-    try:
-        resp = requests.post(url, data=payload, timeout=10)
-        data = resp.json()
-    except (requests.RequestException, ValueError) as e:
-        print(f"Telegram文字訊息傳送失敗: {e}")
-        return False
-    if not data.get("ok"):
-        print(f"Telegram文字訊息傳送失敗: {data}")
-        return False
-    return True
+    all_ok = True
+    for chat_id in chat_ids:
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+        try:
+            resp = requests.post(url, data=payload, timeout=10)
+            data = resp.json()
+        except (requests.RequestException, ValueError) as e:
+            print(f"Telegram文字訊息傳送失敗（chat_id={chat_id}）: {e}")
+            all_ok = False
+            continue
+        if not data.get("ok"):
+            print(f"Telegram文字訊息傳送失敗（chat_id={chat_id}）: {data}")
+            all_ok = False
+    return all_ok
 
 
-def send_telegram_photo(bot_token, chat_id, photo_url, caption):
+def send_telegram_photo(bot_token, chat_ids, photo_url, caption):
+    """chat_ids可以是單一字串，也可以是list——是list就每個人都發一份。全部成功才回傳True。"""
+    if isinstance(chat_ids, str):
+        chat_ids = [chat_ids]
     url = TELEGRAM_API.format(token=bot_token, method="sendPhoto")
-    payload = {"chat_id": chat_id, "photo": photo_url, "caption": caption, "parse_mode": "HTML"}
-    try:
-        resp = requests.post(url, data=payload, timeout=10)
-        data = resp.json()
-    except (requests.RequestException, ValueError) as e:
-        print(f"Telegram圖片傳送失敗: {e}")
-        return False
-    if not data.get("ok"):
-        print(f"Telegram圖片傳送失敗: {data}")
-        return False
-    return True
+    all_ok = True
+    for chat_id in chat_ids:
+        payload = {"chat_id": chat_id, "photo": photo_url, "caption": caption, "parse_mode": "HTML"}
+        try:
+            resp = requests.post(url, data=payload, timeout=10)
+            data = resp.json()
+        except (requests.RequestException, ValueError) as e:
+            print(f"Telegram圖片傳送失敗（chat_id={chat_id}）: {e}")
+            all_ok = False
+            continue
+        if not data.get("ok"):
+            print(f"Telegram圖片傳送失敗（chat_id={chat_id}）: {data}")
+            all_ok = False
+    return all_ok
 
 
 def notify_new_listings(new_items, duplicates_map, telegram_secret):
@@ -201,7 +273,7 @@ def notify_new_listings(new_items, duplicates_map, telegram_secret):
         print("找不到 telegram_secret.json，略過Telegram通知。")
         return
     bot_token = telegram_secret["bot_token"]
-    chat_id = telegram_secret["chat_id"]
+    chat_ids = _chat_ids(telegram_secret)
 
     for item in new_items:
         duplicate_of = duplicates_map.get(item["key"])
@@ -212,9 +284,59 @@ def notify_new_listings(new_items, duplicates_map, telegram_secret):
         photo_url = item.get("photo_url")
         sent = False
         if photo_url:
-            sent = send_telegram_photo(bot_token, chat_id, photo_url, caption)
+            sent = send_telegram_photo(bot_token, chat_ids, photo_url, caption)
         if not sent:
-            send_telegram_message(bot_token, chat_id, caption)
+            send_telegram_message(bot_token, chat_ids, caption)
+
+
+def notify_price_drops(price_drops, telegram_secret):
+    if not telegram_secret:
+        return
+    bot_token = telegram_secret["bot_token"]
+    chat_ids = _chat_ids(telegram_secret)
+
+    for item, old_price in price_drops:
+        caption = build_price_drop_caption(item, old_price)
+        photo_url = item.get("photo_url")
+        sent = False
+        if photo_url:
+            sent = send_telegram_photo(bot_token, chat_ids, photo_url, caption)
+        if not sent:
+            send_telegram_message(bot_token, chat_ids, caption)
+
+
+def load_heartbeat_state():
+    if not HEARTBEAT_PATH.exists():
+        return {}
+    with open(HEARTBEAT_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_heartbeat_state(state):
+    with open(HEARTBEAT_PATH, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
+
+
+def should_send_heartbeat(state, hours):
+    last_sent = state.get("last_sent")
+    if not last_sent:
+        return True
+    try:
+        last_time = datetime.fromisoformat(last_sent)
+    except ValueError:
+        return True
+    return datetime.now(TAIPEI_TZ) - last_time >= timedelta(hours=hours)
+
+
+def build_heartbeat_caption():
+    now_str = datetime.now(TAIPEI_TZ).strftime("%Y-%m-%d %H:%M")
+    return f"<b>💓 House Watcher 心跳確認</b>\n排程正常執行中，這次沒有新物件或降價。\n時間：{now_str}"
+
+
+def notify_heartbeat(telegram_secret):
+    if not telegram_secret:
+        return
+    send_telegram_message(telegram_secret["bot_token"], _chat_ids(telegram_secret), build_heartbeat_caption())
 
 
 def check_config():
@@ -249,13 +371,26 @@ def main():
 
     new_items = find_new_listings(all_items, seen)
     duplicates_map = find_duplicates(new_items, seen)
+    price_drops = find_price_drops(all_items, seen)
 
     print_new_listings(new_items, duplicates_map)
+    print_price_drops(price_drops)
 
     telegram_secret = load_telegram_secret()
     notify_new_listings(new_items, duplicates_map, telegram_secret)
+    if config.NOTIFY_PRICE_DROPS:
+        notify_price_drops(price_drops, telegram_secret)
 
     record_new_listings(seen, new_items, duplicates_map)
+    record_price_drops(seen, price_drops)
+
+    if not new_items and not price_drops and config.HEARTBEAT_ENABLED:
+        heartbeat_state = load_heartbeat_state()
+        if should_send_heartbeat(heartbeat_state, config.HEARTBEAT_HOURS):
+            notify_heartbeat(telegram_secret)
+            heartbeat_state["last_sent"] = datetime.now(TAIPEI_TZ).isoformat()
+            save_heartbeat_state(heartbeat_state)
+
     seen = prune_old(seen, config.PRUNE_DAYS)
     save_seen_houses(seen)
 

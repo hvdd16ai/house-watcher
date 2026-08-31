@@ -27,6 +27,17 @@ const ENABLED_SOURCES = {
 // false(預設)：不通知，但還是會記錄進Sheet、標記duplicate_of。
 const NOTIFY_DUPLICATES = false;
 
+// 已經看過的物件如果降價了，要不要另外發一則「降價提醒」的Telegram通知(跟一般新物件通知分開)。
+// price一律都會更新進Sheet，這個設定只影響要不要「推播」，邏輯跟NOTIFY_DUPLICATES一樣。
+// 注意：只有這次剛好又被抓到的物件才驗得到降價(通常是降價後排序被往前推、剛好在抓取範圍內)，
+// 不保證100%抓到每一次降價。
+const NOTIFY_PRICE_DROPS = true;
+
+// 排程正常執行、但這次完全沒有新物件也沒有降價時，要不要定期發一則「還活著」的心跳通知，
+// 避免排程默默壞掉卻不知道。HEARTBEAT_HOURS是最短間隔(小時)，避免每次執行都發。
+const HEARTBEAT_ENABLED = false;
+const HEARTBEAT_HOURS = 24;
+
 // 591房屋交易網(sale.591.com.tw)設定。HOUSE_591是清單，每個物件是一組獨立的搜尋條件，會各自查完再合併結果。
 const HOUSE_591 = [
   {
@@ -681,6 +692,18 @@ function loadContentIndex_(sheet) {
   return index;
 }
 
+function loadSeenRecords_(sheet) {
+  const lastRow = sheet.getLastRow();
+  const records = {};
+  if (lastRow < 2) return records;
+  const rows = sheet.getRange(2, 1, lastRow - 1, SHEET_HEADERS.length).getValues();
+  rows.forEach((row) => {
+    const record = rowToRecord_(row);
+    records[String(record.key)] = record;
+  });
+  return records;
+}
+
 function findNewListings_(items, seenIds) {
   const newItems = [];
   const seenInBatch = new Set();
@@ -709,6 +732,27 @@ function findDuplicates_(newItems, contentIndex) {
   return duplicatesMap;
 }
 
+/**
+ * 比對這次抓到的物件(不論新舊)跟Sheet裡記錄的價格，抓出降價的物件。
+ * 回傳 [{item, oldPrice}, ...]。只有這次剛好被抓到、且總價比記錄的低才算，
+ * 不保證每次降價都能抓到(取決於排序有沒有把它推回抓取範圍內)。
+ */
+function findPriceDrops_(items, seenRecords) {
+  const drops = [];
+  items.forEach((item) => {
+    const oldRecord = seenRecords[item.key];
+    if (!oldRecord) return;
+    const oldPrice = oldRecord.price;
+    const newPrice = item.price;
+    if (oldPrice === '' || oldPrice === null || oldPrice === undefined) return;
+    if (newPrice === null || newPrice === undefined) return;
+    if (Number(newPrice) < Number(oldPrice)) {
+      drops.push({ item: item, oldPrice: Number(oldPrice) });
+    }
+  });
+  return drops;
+}
+
 function appendNewRows_(sheet, newItems, duplicatesMap) {
   if (!newItems.length) return;
   const now = Utilities.formatDate(new Date(), 'Asia/Taipei', "yyyy-MM-dd'T'HH:mm:ssXXX");
@@ -733,6 +777,30 @@ function appendNewRows_(sheet, newItems, duplicatesMap) {
     (duplicatesMap[item.key] || []).join(','),
   ]);
   sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, SHEET_HEADERS.length).setValues(rows);
+}
+
+/**
+ * 把降價後的最新price/unitprice更新回Sheet，不受NOTIFY_PRICE_DROPS影響(邏輯同NOTIFY_DUPLICATES)。
+ */
+function recordPriceDrops_(sheet, priceDrops) {
+  if (!priceDrops.length) return;
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  const keyCol = SHEET_HEADERS.indexOf('key') + 1;
+  const priceCol = SHEET_HEADERS.indexOf('price') + 1;
+  const unitpriceCol = SHEET_HEADERS.indexOf('unitprice') + 1;
+  const keys = sheet.getRange(2, keyCol, lastRow - 1, 1).getValues().flat().map(String);
+
+  const dropByKey = {};
+  priceDrops.forEach((d) => { dropByKey[d.item.key] = d.item; });
+
+  for (let i = 0; i < keys.length; i++) {
+    const item = dropByKey[keys[i]];
+    if (!item) continue;
+    const row = i + 2;
+    sheet.getRange(row, priceCol).setValue(item.price || '');
+    sheet.getRange(row, unitpriceCol).setValue(item.unitprice || '');
+  }
 }
 
 function pruneOld_(sheet, days) {
@@ -768,51 +836,66 @@ function buildTelegramCaption_(item, duplicateOf) {
   return lines.join('\n');
 }
 
-function sendTelegramMessage_(botToken, chatId, text) {
-  const url = TELEGRAM_API.replace('{token}', botToken).replace('{method}', 'sendMessage');
-  try {
-    const resp = UrlFetchApp.fetch(url, {
-      method: 'post',
-      payload: { chat_id: chatId, text: text, parse_mode: 'HTML' },
-      muteHttpExceptions: true,
-    });
-    const data = JSON.parse(resp.getContentText());
-    if (!data.ok) {
-      Logger.log('Telegram文字訊息傳送失敗: ' + resp.getContentText());
-      return false;
-    }
-    return true;
-  } catch (e) {
-    Logger.log('Telegram文字訊息傳送失敗: ' + e);
-    return false;
-  }
+/**
+ * 從 Script Properties 讀 TELEGRAM_CHAT_ID，逗號分隔就是多人接收(每個人都會收到)。
+ */
+function getChatIds_() {
+  const raw = PropertiesService.getScriptProperties().getProperty('TELEGRAM_CHAT_ID') || '';
+  return raw.split(',').map((s) => s.trim()).filter((s) => s);
 }
 
-function sendTelegramPhoto_(botToken, chatId, photoUrl, caption) {
-  const url = TELEGRAM_API.replace('{token}', botToken).replace('{method}', 'sendPhoto');
-  try {
-    const resp = UrlFetchApp.fetch(url, {
-      method: 'post',
-      payload: { chat_id: chatId, photo: photoUrl, caption: caption, parse_mode: 'HTML' },
-      muteHttpExceptions: true,
-    });
-    const data = JSON.parse(resp.getContentText());
-    if (!data.ok) {
-      Logger.log('Telegram圖片傳送失敗: ' + resp.getContentText());
-      return false;
+function sendTelegramMessage_(botToken, chatIds, text) {
+  const ids = Array.isArray(chatIds) ? chatIds : [chatIds];
+  const url = TELEGRAM_API.replace('{token}', botToken).replace('{method}', 'sendMessage');
+  let allOk = true;
+  ids.forEach((chatId) => {
+    try {
+      const resp = UrlFetchApp.fetch(url, {
+        method: 'post',
+        payload: { chat_id: chatId, text: text, parse_mode: 'HTML' },
+        muteHttpExceptions: true,
+      });
+      const data = JSON.parse(resp.getContentText());
+      if (!data.ok) {
+        Logger.log('Telegram文字訊息傳送失敗（chat_id=' + chatId + '）: ' + resp.getContentText());
+        allOk = false;
+      }
+    } catch (e) {
+      Logger.log('Telegram文字訊息傳送失敗（chat_id=' + chatId + '）: ' + e);
+      allOk = false;
     }
-    return true;
-  } catch (e) {
-    Logger.log('Telegram圖片傳送失敗: ' + e);
-    return false;
-  }
+  });
+  return allOk;
+}
+
+function sendTelegramPhoto_(botToken, chatIds, photoUrl, caption) {
+  const ids = Array.isArray(chatIds) ? chatIds : [chatIds];
+  const url = TELEGRAM_API.replace('{token}', botToken).replace('{method}', 'sendPhoto');
+  let allOk = true;
+  ids.forEach((chatId) => {
+    try {
+      const resp = UrlFetchApp.fetch(url, {
+        method: 'post',
+        payload: { chat_id: chatId, photo: photoUrl, caption: caption, parse_mode: 'HTML' },
+        muteHttpExceptions: true,
+      });
+      const data = JSON.parse(resp.getContentText());
+      if (!data.ok) {
+        Logger.log('Telegram圖片傳送失敗（chat_id=' + chatId + '）: ' + resp.getContentText());
+        allOk = false;
+      }
+    } catch (e) {
+      Logger.log('Telegram圖片傳送失敗（chat_id=' + chatId + '）: ' + e);
+      allOk = false;
+    }
+  });
+  return allOk;
 }
 
 function notifyNewListings_(newItems, duplicatesMap) {
-  const props = PropertiesService.getScriptProperties();
-  const botToken = props.getProperty('TELEGRAM_BOT_TOKEN');
-  const chatId = props.getProperty('TELEGRAM_CHAT_ID');
-  if (!botToken || !chatId) {
+  const botToken = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
+  const chatIds = getChatIds_();
+  if (!botToken || !chatIds.length) {
     Logger.log('找不到 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID（Script Properties），略過通知。');
     return;
   }
@@ -823,12 +906,61 @@ function notifyNewListings_(newItems, duplicatesMap) {
     const caption = buildTelegramCaption_(item, duplicateOf);
     let sent = false;
     if (item.photo_url) {
-      sent = sendTelegramPhoto_(botToken, chatId, item.photo_url, caption);
+      sent = sendTelegramPhoto_(botToken, chatIds, item.photo_url, caption);
     }
     if (!sent) {
-      sendTelegramMessage_(botToken, chatId, caption);
+      sendTelegramMessage_(botToken, chatIds, caption);
     }
   });
+}
+
+function buildPriceDropCaption_(item, oldPrice) {
+  const label = getSourceLabels_()[item.source] || item.source;
+  const name = item.community_name || item.title;
+  return [
+    '<b>💰 降價提醒 [' + label + '] ' + name + '</b>',
+    '地址：' + item.address,
+    '格局：' + item.room + '　坪數：' + item.area + '坪　屋齡：' + item.houseage + '年',
+    '總價：' + oldPrice.toLocaleString('en-US') + ' → ' + item.show_price + '萬',
+    item.url,
+  ].join('\n');
+}
+
+function notifyPriceDrops_(priceDrops) {
+  const botToken = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
+  const chatIds = getChatIds_();
+  if (!botToken || !chatIds.length) return;
+
+  priceDrops.forEach((drop) => {
+    const caption = buildPriceDropCaption_(drop.item, drop.oldPrice);
+    let sent = false;
+    if (drop.item.photo_url) {
+      sent = sendTelegramPhoto_(botToken, chatIds, drop.item.photo_url, caption);
+    }
+    if (!sent) {
+      sendTelegramMessage_(botToken, chatIds, caption);
+    }
+  });
+}
+
+function shouldSendHeartbeat_(hours) {
+  const lastSent = PropertiesService.getScriptProperties().getProperty('LAST_HEARTBEAT_AT');
+  if (!lastSent) return true;
+  const diffHours = (Date.now() - new Date(lastSent).getTime()) / 3600000;
+  return diffHours >= hours;
+}
+
+function buildHeartbeatCaption_() {
+  const nowStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+  return '<b>💓 House Watcher 心跳確認</b>\n排程正常執行中，這次沒有新物件或降價。\n時間：' + nowStr;
+}
+
+function notifyHeartbeat_() {
+  const botToken = PropertiesService.getScriptProperties().getProperty('TELEGRAM_BOT_TOKEN');
+  const chatIds = getChatIds_();
+  if (!botToken || !chatIds.length) return;
+  sendTelegramMessage_(botToken, chatIds, buildHeartbeatCaption_());
+  PropertiesService.getScriptProperties().setProperty('LAST_HEARTBEAT_AT', new Date().toISOString());
 }
 
 /**
@@ -874,11 +1006,23 @@ function checkNewListings() {
   const newItems = findNewListings_(allItems, seenIds);
   const contentIndex = loadContentIndex_(sheet);
   const duplicatesMap = findDuplicates_(newItems, contentIndex);
+  const seenRecords = loadSeenRecords_(sheet);
+  const priceDrops = findPriceDrops_(allItems, seenRecords);
 
-  Logger.log('發現 ' + newItems.length + ' 筆新物件。');
+  Logger.log('發現 ' + newItems.length + ' 筆新物件，' + priceDrops.length + ' 筆降價物件。');
 
   notifyNewListings_(newItems, duplicatesMap);
+  if (NOTIFY_PRICE_DROPS) {
+    notifyPriceDrops_(priceDrops);
+  }
+
   appendNewRows_(sheet, newItems, duplicatesMap);
+  recordPriceDrops_(sheet, priceDrops);
+
+  if (!newItems.length && !priceDrops.length && HEARTBEAT_ENABLED && shouldSendHeartbeat_(HEARTBEAT_HOURS)) {
+    notifyHeartbeat_();
+  }
+
   pruneOld_(sheet, PRUNE_DAYS);
 }
 
