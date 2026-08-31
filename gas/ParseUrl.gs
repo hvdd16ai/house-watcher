@@ -1,6 +1,6 @@
 /**
  * 貼上591/永慶/信義任一個網站的網址，自動判斷是哪個網站，
- * 轉成對應的 Config.gs 格式，不用自己查代碼。
+ * 轉成對應的 Code.gs 設定格式，不用自己查代碼。
  * 對應本機Python版 parse_url.py，邏輯相同。
  *
  * 使用方式：
@@ -195,7 +195,7 @@ function parseUrl() {
     return;
   }
 
-  Logger.log('解析結果（可以直接複製貼進 Config.gs 的 ' + result.configKey + ' 清單裡）：\n\n' + result.text);
+  Logger.log('解析結果（可以直接複製貼進 Code.gs 的 ' + result.configKey + ' 清單裡）：\n\n' + result.text);
   if (result.warning) {
     Logger.log('\n' + result.warning);
   }

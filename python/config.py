@@ -1,4 +1,4 @@
-"""591抓取設定。不想套用某個篩選條件，把值設成 None，或整行註解掉都可以。"""
+"""591/永慶/信義抓取設定。不想套用某個篩選條件，把值設成 None，或整行註解掉都可以。"""
 
 # 要不要抓某個網站，改 True/False 就好，不用碰程式碼
 ENABLED_SOURCES = {
@@ -46,7 +46,7 @@ HOUSE_591 = [
         "parking": None,
     },
     # 想再搜別的縣市，複製一組上面的dict、改regionid/sectionid即可，例如：
-    # {"regionid": 1, "sectionid": 47, "type": 2, "shape": 2, "price": None, "area": None, "pattern": "2,3,4,5", "houseage": None, "parking": None},
+    # {"regionid": 1, "sectionid": 5, "type": 2, "shape": 2, "price": None, "area": None, "pattern": "2,3,4,5", "houseage": None, "parking": None},  # 台北市大安區
 ]
 
 HOUSE_591_MAX_PAGES = 5  # 最多往前抓幾頁（用「早停」邏輯，通常用不到這麼多）

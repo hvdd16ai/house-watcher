@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""合併591/永慶/信義的新竹市東區最新出售物件，找出還沒看過的物件。"""
+"""合併591/永慶/信義的最新出售物件（搜尋地區/條件見config.py），找出還沒看過的物件。"""
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path

@@ -1,5 +1,5 @@
 /**
- * 本機測試用：模擬 Apps Script 執行環境來跑 Config.gs + Code.gs。
+ * 本機測試用：模擬 Apps Script 執行環境來跑 Code.gs（設定跟邏輯都合併在這一個檔案裡）。
  * UrlFetchApp 改用真的 curl 呼叫591/Telegram的真實API，
  * SpreadsheetApp/PropertiesService 用記憶體/本機檔案模擬。
  * 這個檔案不會被貼進Google Apps Script，純粹是這裡驗證邏輯用的。

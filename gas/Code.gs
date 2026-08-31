@@ -41,7 +41,7 @@ const HOUSE_591 = [
     parking: null,                   // 車位類型，逗號分隔數字，目前只驗證過1=平面式、2=機械式。不限就設 null
   },
   // 想再搜別的縣市，複製一組上面的物件、改regionid/sectionid即可，例如：
-  // { regionid: 1, sectionid: 47, type: 2, shape: 2, price: null, area: null, pattern: '2,3,4,5', houseage: null, parking: null },
+  // { regionid: 1, sectionid: 5, type: 2, shape: 2, price: null, area: null, pattern: '2,3,4,5', houseage: null, parking: null },  // 台北市大安區
 ];
 
 const HOUSE_591_MAX_PAGES = 5;  // 最多往前抓幾頁（用「早停」邏輯，通常用不到這麼多）
