@@ -49,9 +49,18 @@ function parse591Url_(url) {
   return { text: lines.join('\n'), warning: warning, configKey: 'HOUSE_591' };
 }
 
+// [網址片段後綴, target物件的key]，對照 SITES_REFERENCE.md 的「永慶房屋參數對照」表
+const YC_PARSE_SUFFIX_MAP = [
+  ['_price', 'price'],
+  ['_type', 'type'],
+  ['_rmp', 'rooms'],
+  ['_pin', 'area'],
+  ['_age', 'house_age'],
+];
+
 function parseYungchingUrl_(url) {
   const path = decodeURIComponent(url.split('?')[0]);
-  const m = path.match(/\/list\/(.+?)_c\//);
+  const m = path.match(/\/list\/(.+?)_c\/(.*)/);
   if (!m) {
     return {
       text: null,
@@ -60,18 +69,50 @@ function parseYungchingUrl_(url) {
     };
   }
   const region = m[1];
+  const segments = m[2].split('/').filter((s) => s && s !== 'new_filter');
+
+  const extra = {};
+  YC_PARSE_SUFFIX_MAP.forEach((pair) => { extra[pair[1]] = null; });
+  let hasParking = null;
+  segments.forEach((seg) => {
+    if (seg === 'y_park' || seg === 'n_park') {
+      hasParking = seg === 'y_park';
+      return;
+    }
+    YC_PARSE_SUFFIX_MAP.some((pair) => {
+      if (seg.endsWith(pair[0])) {
+        extra[pair[1]] = seg.slice(0, -pair[0].length);
+        return true;
+      }
+      return false;
+    });
+  });
+
+  const litOf = (v) => (v === null ? 'null' : "'" + v + "'");
   const lines = [
     '  {',
     "    region: '" + region + "',",
     '    min_rooms: 2,  // 記得確認房數門檻要設多少，不限就設 null',
-    '  },',
   ];
+  YC_PARSE_SUFFIX_MAP.forEach((pair) => {
+    lines.push('    ' + pair[1] + ': ' + litOf(extra[pair[1]]) + ',');
+  });
+  lines.push('    has_parking: ' + (hasParking === null ? 'null' : hasParking) + ',');
+  lines.push('  },');
   return { text: lines.join('\n'), warning: null, configKey: 'YUNGCHING' };
 }
 
+// [網址片段後綴, target物件的key]，對照 SITES_REFERENCE.md 的「信義房屋參數對照」表
+const SINYI_PARSE_SUFFIX_MAP = [
+  ['-type', 'type'],
+  ['-price', 'price'],
+  ['-roomtotal', 'rooms'],
+  ['-zip', 'zip'],
+];
+
 function parseSinyiUrl_(url) {
   const path = url.split('?')[0];
-  const m = path.match(/\/buy\/list\/([^/]+)/);
+  const m = path.match(/\/buy\/list\/([^/]+)(.*)/);
   if (!m) {
     return {
       text: null,
@@ -80,12 +121,30 @@ function parseSinyiUrl_(url) {
     };
   }
   const region = m[1];
+  const segments = m[2].split('/').filter((s) => s && s !== 'default-desc' && !/^\d+$/.test(s));
+
+  const extra = {};
+  SINYI_PARSE_SUFFIX_MAP.forEach((pair) => { extra[pair[1]] = null; });
+  segments.forEach((seg) => {
+    SINYI_PARSE_SUFFIX_MAP.some((pair) => {
+      if (seg.endsWith(pair[0])) {
+        extra[pair[1]] = seg.slice(0, -pair[0].length);
+        return true;
+      }
+      return false;
+    });
+  });
+
+  const litOf = (v) => (v === null ? 'null' : "'" + v + "'");
   const lines = [
     '  {',
     "    region: '" + region + "',",
     '    min_rooms: 2,  // 記得確認房數門檻要設多少，不限就設 null',
-    '  },',
   ];
+  SINYI_PARSE_SUFFIX_MAP.forEach((pair) => {
+    lines.push('    ' + pair[1] + ': ' + litOf(extra[pair[1]]) + ',');
+  });
+  lines.push('  },');
   return {
     text: lines.join('\n'),
     warning: '⚠️ 提醒：信義只能篩到縣市層級，抓到的會是整個縣市範圍，不會只有你想要的區。',

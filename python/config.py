@@ -50,29 +50,45 @@ HOUSE_591 = [
 HOUSE_591_MAX_PAGES = 5  # 最多往前抓幾頁（用「早停」邏輯，通常用不到這麼多）
 
 # 永慶房屋(buy.yungching.com.tw)設定。YUNGCHING是清單，每個dict是一組獨立的地區，各自查完再合併。
-# 永慶沒有591那種伺服器端房數篩選按鈕可用（實測591的pattern有小機率誤殺，這裡改用
-# 「格局」文字自己判斷），每一組地區都要自己設 min_rooms（不限就設 None），不同組可以設不同門檻。
+# min_rooms是程式讀「格局」文字自己判斷房數(不限就設 None)，跟下面的 rooms(平台原生篩選)是兩回事、
+# 互不影響：min_rooms一定會套用，rooms只是多加一個讓網站先篩、可以少抓幾頁的優化，不設也沒關係。
 YUNGCHING = [
     {
         # 格式："縣市-鄉鎮區"，中間用「-」連接。同縣市內支援多選，逗號分隔多組，
         # 例如 "新竹市-東區,新竹市-北區" 同時搜兩區（實測過）。跨縣市請用清單多加一組，不要塞逗號。
         "region": "新竹市-東區",
         "min_rooms": 2,
+
+        # 以下是永慶網址上的原生篩選條件，格式對照 SITES_REFERENCE.md 的「永慶房屋參數對照」表，
+        # 不用可以全部留 None，不影響其他設定。
+        "price": None,        # 總價(萬)，格式 "最低-最高"，開放區間可留空一端，例如 "1000-" = 1000萬以上
+        "type": None,         # 型態，例如 "電梯大廈"、"華廈"、"透天別墅"
+        "rooms": None,        # 房數，格式同總價，例如 "2-2" = 剛好2房（跟上面的min_rooms是兩回事，見上方說明）
+        "area": None,         # 建坪(坪)，格式同總價，例如 "20-30"
+        "has_parking": None,  # 車位：True=有車位、False=無車位、None=不限
     },
-    # {"region": "台北市-大安區", "min_rooms": 2},
+    # {"region": "台北市-大安區", "min_rooms": 2, "price": None, "type": None, "rooms": None, "area": None, "has_parking": None},
 ]
 
 YUNGCHING_MAX_PAGES = 5
 
 # 信義房屋(www.sinyi.com.tw)設定。SINYI是清單，每個dict是一組獨立的縣市，各自查完再合併。
 # 注意：信義房屋沒辦法篩選到「東區」這麼細，只能篩到整個新竹市（會混進北區/香山區）。
-# 一樣沒有伺服器端房數篩選，每一組縣市都要自己設 min_rooms（不限就設 None）。
+# min_rooms是程式讀「格局」文字自己判斷房數(不限就設 None)，跟下面的 rooms(平台原生篩選)是兩回事，
+# 邏輯同永慶，見上面 YUNGCHING 的說明。
 SINYI = [
     {
         "region": "Hsinchu-city",
         "min_rooms": 2,
+
+        # 以下是信義網址上的原生篩選條件，格式對照 SITES_REFERENCE.md 的「信義房屋參數對照」表，
+        # 不用可以全部留 None，不影響其他設定。
+        "type": None,   # 型態，拼音值，目前只驗證過 "dalou"(大樓)，其他型態代碼未確認
+        "price": None,  # 總價，格式 "最低-up"，例如 "1000-up" = 1000萬以上
+        "rooms": None,  # 房數，格式同總價，例如 "2-up" = 2房以上（跟上面的min_rooms是兩回事，見上方說明）
+        "zip": None,    # 郵遞區號，例如 "300"(新竹市)。實測對縣市級搜尋沒有限縮效果，意義未完全確認，不建議依賴
     },
-    # {"region": "Taipei-city", "min_rooms": 2},
+    # {"region": "Taipei-city", "min_rooms": 2, "type": None, "price": None, "rooms": None, "zip": None},
 ]
 
 SINYI_MAX_PAGES = 5

@@ -19,14 +19,27 @@ NAME = "sinyi"
 LABEL = "信義"
 
 BASE_URL = "https://www.sinyi.com.tw"
-LIST_URL_TEMPLATE = BASE_URL + "/buy/list/{region}/default-desc/{page}"
 
 MAX_RETRIES = 10
 RETRY_DELAY_SECONDS = 60
 
+# (target dict的key, 網址片段後綴)，對照 SITES_REFERENCE.md 的「信義房屋參數對照」表
+FILTER_PARAM_MAP = [
+    ("type", "-type"),
+    ("price", "-price"),
+    ("rooms", "-roomtotal"),
+    ("zip", "-zip"),
+]
 
-def fetch_page(region, page):
-    url = LIST_URL_TEMPLATE.format(region=region, page=page)
+
+def _build_filter_segments(target):
+    """依target dict組出信義網址的篩選路徑片段（不含地區、不含排序/頁碼）。沒設定的欄位不會出現在網址裡。"""
+    return [f"{target[key]}{suffix}" for key, suffix in FILTER_PARAM_MAP if target.get(key)]
+
+
+def fetch_page(region, page, filter_segments=None):
+    path = "/".join([region] + (filter_segments or []) + ["default-desc", str(page)])
+    url = f"{BASE_URL}/buy/list/{path}"
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
@@ -91,14 +104,14 @@ def parse_listings(html):
     return items
 
 
-def _fetch_target(region, seen, max_pages, min_rooms):
+def _fetch_target(region, seen, max_pages, min_rooms, filter_segments=None):
     """抓一組縣市。回傳 (物件list, fetch_failed)。region沒有區級篩選，只到縣市層級。
     頁碼式分頁不需要知道每頁固定幾筆，抓到空頁就代表到底了。
     """
     all_items = []
     fetch_failed = False
     for page in range(1, max_pages + 1):
-        items = fetch_page(region, page)
+        items = fetch_page(region, page, filter_segments)
         if items is None:
             fetch_failed = True
             break
@@ -127,7 +140,8 @@ def fetch_latest_listings(seen):
     all_items = []
     fetch_failed = False
     for target in config.SINYI:
-        items, failed = _fetch_target(target["region"], seen, max_pages, target.get("min_rooms"))
+        filter_segments = _build_filter_segments(target)
+        items, failed = _fetch_target(target["region"], seen, max_pages, target.get("min_rooms"), filter_segments)
         all_items.extend(items)
         if failed:
             fetch_failed = True

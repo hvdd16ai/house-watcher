@@ -46,26 +46,44 @@ const HOUSE_591 = [
 const HOUSE_591_MAX_PAGES = 5;  // 最多往前抓幾頁（用「早停」邏輯，通常用不到這麼多）
 
 // 永慶房屋(buy.yungching.com.tw)設定。YUNGCHING是清單，每個物件是一組獨立的地區，各自查完再合併。
+// min_rooms是程式讀「格局」文字自己判斷房數(不限就設 null)，跟下面的 rooms(平台原生篩選)是兩回事、
+// 互不影響：min_rooms一定會套用，rooms只是多加一個讓網站先篩、可以少抓幾頁的優化，不設也沒關係。
 const YUNGCHING = [
   {
     // 格式："縣市-鄉鎮區"，中間用「-」連接。同縣市內支援多選，逗號分隔多組，
     // 例如 "新竹市-東區,新竹市-北區" 同時搜兩區。跨縣市請用清單多加一組，不要塞逗號。
     region: '新竹市-東區',
-    min_rooms: 2,  // 永慶沒有伺服器端房數篩選，程式讀「格局」文字自己判斷。不限就設 null
+    min_rooms: 2,
+
+    // 以下是永慶網址上的原生篩選條件，格式對照 SITES_REFERENCE.md 的「永慶房屋參數對照」表，
+    // 不用可以全部留 null，不影響其他設定。
+    price: null,        // 總價(萬)，格式 "最低-最高"，開放區間可留空一端，例如 "1000-" = 1000萬以上
+    type: null,         // 型態，例如 "電梯大廈"、"華廈"、"透天別墅"
+    rooms: null,        // 房數，格式同總價，例如 "2-2" = 剛好2房（跟上面的min_rooms是兩回事，見上方說明）
+    area: null,         // 建坪(坪)，格式同總價，例如 "20-30"
+    has_parking: null,  // 車位：true=有車位、false=無車位、null=不限
   },
-  // { region: '台北市-大安區', min_rooms: 2 },
+  // { region: '台北市-大安區', min_rooms: 2, price: null, type: null, rooms: null, area: null, has_parking: null },
 ];
 
 const YUNGCHING_MAX_PAGES = 5;
 
 // 信義房屋(www.sinyi.com.tw)設定。SINYI是清單，每個物件是一組獨立的縣市，各自查完再合併。
 // 注意：信義房屋沒辦法篩選到「東區」這麼細，只能篩到整個新竹市（會混進北區/香山區）。
+// min_rooms邏輯同永慶，見上面 YUNGCHING 的說明。
 const SINYI = [
   {
     region: 'Hsinchu-city',
-    min_rooms: 2,  // 信義一樣沒有伺服器端房數篩選，程式讀「格局」文字判斷。不限就設 null
+    min_rooms: 2,
+
+    // 以下是信義網址上的原生篩選條件，格式對照 SITES_REFERENCE.md 的「信義房屋參數對照」表，
+    // 不用可以全部留 null，不影響其他設定。
+    type: null,   // 型態，拼音值，目前只驗證過 "dalou"(大樓)，其他型態代碼未確認
+    price: null,  // 總價，格式 "最低-up"，例如 "1000-up" = 1000萬以上
+    rooms: null,  // 房數，格式同總價，例如 "2-up" = 2房以上（跟上面的min_rooms是兩回事，見上方說明）
+    zip: null,    // 郵遞區號，例如 "300"(新竹市)。實測對縣市級搜尋沒有限縮效果，意義未完全確認，不建議依賴
   },
-  // { region: 'Taipei-city', min_rooms: 2 },
+  // { region: 'Taipei-city', min_rooms: 2, type: null, price: null, rooms: null, zip: null },
 ];
 
 const SINYI_MAX_PAGES = 5;
@@ -286,8 +304,31 @@ function ycParseListings_(html) {
   return items;
 }
 
-function ycFetchPage_(region, page) {
-  const url = YC_BASE_URL + '/list/' + encodeURIComponent(region) + '_c/new_filter?pg=' + page;
+// [target物件的key, 網址片段後綴]，對照 SITES_REFERENCE.md 的「永慶房屋參數對照」表
+const YC_FILTER_PARAM_MAP = [
+  ['price', '_price'],
+  ['type', '_type'],
+  ['rooms', '_rmp'],
+  ['area', '_pin'],
+  ['house_age', '_age'],
+];
+
+function ycBuildFilterSegments_(target) {
+  const segments = [];
+  YC_FILTER_PARAM_MAP.forEach((pair) => {
+    const value = target[pair[0]];
+    if (value) segments.push(value + pair[1]);
+  });
+  if (target.has_parking !== null && target.has_parking !== undefined) {
+    segments.push((target.has_parking ? 'y' : 'n') + '_park');
+  }
+  return segments;
+}
+
+function ycFetchPage_(region, page, filterSegments) {
+  const segments = (filterSegments || []).map(encodeURIComponent);
+  const path = encodeURIComponent(region) + '_c/' + segments.concat(['new_filter']).join('/');
+  const url = YC_BASE_URL + '/list/' + path + '?pg=' + page;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const resp = UrlFetchApp.fetch(url, {
@@ -310,12 +351,12 @@ function ycFetchPage_(region, page) {
   return null;
 }
 
-function ycFetchTarget_(region, seenIds, maxPages, minRooms) {
+function ycFetchTarget_(region, seenIds, maxPages, minRooms, filterSegments) {
   // 頁碼式分頁不需要知道每頁固定幾筆，抓到空頁就代表到底了。
   const allItems = [];
   let fetchFailed = false;
   for (let page = 1; page <= maxPages; page++) {
-    const items = ycFetchPage_(region, page);
+    const items = ycFetchPage_(region, page, filterSegments);
     if (items === null) {
       fetchFailed = true;
       break;
@@ -340,7 +381,8 @@ function ycFetchLatestListings_(seenIds) {
   const allItems = [];
   let fetchFailed = false;
   YUNGCHING.forEach((target) => {
-    const result = ycFetchTarget_(target.region, seenIds, YUNGCHING_MAX_PAGES, target.min_rooms);
+    const filterSegments = ycBuildFilterSegments_(target);
+    const result = ycFetchTarget_(target.region, seenIds, YUNGCHING_MAX_PAGES, target.min_rooms, filterSegments);
     Array.prototype.push.apply(allItems, result.items);
     if (result.fetchFailed) fetchFailed = true;
   });
@@ -446,8 +488,27 @@ function sinyiParseListings_(html) {
   return items;
 }
 
-function sinyiFetchPage_(region, page) {
-  const url = SINYI_BASE_URL + '/buy/list/' + encodeURIComponent(region) + '/default-desc/' + page;
+// [target物件的key, 網址片段後綴]，對照 SITES_REFERENCE.md 的「信義房屋參數對照」表
+const SINYI_FILTER_PARAM_MAP = [
+  ['type', '-type'],
+  ['price', '-price'],
+  ['rooms', '-roomtotal'],
+  ['zip', '-zip'],
+];
+
+function sinyiBuildFilterSegments_(target) {
+  const segments = [];
+  SINYI_FILTER_PARAM_MAP.forEach((pair) => {
+    const value = target[pair[0]];
+    if (value) segments.push(value + pair[1]);
+  });
+  return segments;
+}
+
+function sinyiFetchPage_(region, page, filterSegments) {
+  const segments = (filterSegments || []).map(encodeURIComponent);
+  const path = encodeURIComponent(region) + '/' + segments.concat(['default-desc', String(page)]).join('/');
+  const url = SINYI_BASE_URL + '/buy/list/' + path;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const resp = UrlFetchApp.fetch(url, {
@@ -470,12 +531,12 @@ function sinyiFetchPage_(region, page) {
   return null;
 }
 
-function sinyiFetchTarget_(region, seenIds, maxPages, minRooms) {
+function sinyiFetchTarget_(region, seenIds, maxPages, minRooms, filterSegments) {
   // 頁碼式分頁不需要知道每頁固定幾筆，抓到空頁就代表到底了。
   const allItems = [];
   let fetchFailed = false;
   for (let page = 1; page <= maxPages; page++) {
-    const items = sinyiFetchPage_(region, page);
+    const items = sinyiFetchPage_(region, page, filterSegments);
     if (items === null) {
       fetchFailed = true;
       break;
@@ -500,7 +561,8 @@ function sinyiFetchLatestListings_(seenIds) {
   const allItems = [];
   let fetchFailed = false;
   SINYI.forEach((target) => {
-    const result = sinyiFetchTarget_(target.region, seenIds, SINYI_MAX_PAGES, target.min_rooms);
+    const filterSegments = sinyiBuildFilterSegments_(target);
+    const result = sinyiFetchTarget_(target.region, seenIds, SINYI_MAX_PAGES, target.min_rooms, filterSegments);
     Array.prototype.push.apply(allItems, result.items);
     if (result.fetchFailed) fetchFailed = true;
   });
