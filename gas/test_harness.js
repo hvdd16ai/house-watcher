@@ -79,12 +79,20 @@ const UrlFetchApp = {
     const method = (options.method || 'get').toLowerCase();
     const headers = options.headers || {};
 
-    if (!SEND_REAL_TELEGRAM && url.indexOf('https://api.telegram.org/') === 0) {
+    const isTelegram = url.indexOf('https://api.telegram.org/') === 0;
+
+    if (!SEND_REAL_TELEGRAM && isTelegram) {
       console.log('  [攔截] 沒有真的發送 Telegram: ' + url.replace(/\/bot[^/]+\//, '/bot***/'));
       return {
         getResponseCode: () => 200,
         getContentText: () => JSON.stringify({ ok: true, result: { message_id: 0 } }),
       };
+    }
+
+    // SEND_REAL_TELEGRAM=1真的要送出時，訊息前面加上「［測試］」，避免跟正式通知混淆
+    if (SEND_REAL_TELEGRAM && isTelegram && options.payload) {
+      if (options.payload.text) options.payload.text = '［測試］' + options.payload.text;
+      if (options.payload.caption) options.payload.caption = '［測試］' + options.payload.caption;
     }
 
     const args = ['-s', '-w', '\n___HTTP_CODE___%{http_code}'];
