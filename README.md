@@ -106,70 +106,7 @@ cp telegram_secret.example.json telegram_secret.json
 
 **2. 搜尋條件**
 
-編輯 `config.py`，修改 `HOUSE_591`、`YUNGCHING`、`SINYI` 三組設定（預設為新竹市東區）。地區代碼可參考 [`SITES_REFERENCE.md`](SITES_REFERENCE.md)，或使用附帶工具自動解析：
-
-```bash
-python3 parse_url.py "<平台搜尋結果網址>"
-```
-
-範例（591 新竹市東區搜尋結果網址）：
-
-```bash
-python3 parse_url.py "https://sale.591.com.tw/list?regionid=4&sectionid=371&type=2&shape=2&pattern=2,3,4,5"
-```
-
-輸出：
-
-```
-判斷為【591】的網址，解析結果（可以直接複製貼進 config.py 的 HOUSE_591 清單裡）：
-
-    {
-        'regionid': 4,
-        'sectionid': 371,
-        'type': 2,
-        'shape': 2,
-        'price': None,
-        'area': None,
-        'pattern': '2,3,4,5',
-        'label': None,
-    },
-```
-
-複製 `{...}` 這一段貼進 `config.py` 的 `HOUSE_591` 清單裡即可。
-
-永慶／信義的網址也用同一支工具，會自動判斷網站並輸出對應格式：
-
-```bash
-python3 parse_url.py "https://buy.yungching.com.tw/list/新竹市-東區_c/new_filter"
-```
-
-輸出：
-
-```
-判斷為【永慶】的網址，解析結果（可以直接複製貼進 config.py 的 YUNGCHING 清單裡）：
-
-    {
-        'region': '新竹市-東區',
-        'min_rooms': 2,  # 記得確認房數門檻要設多少，不限就設 None
-    },
-```
-
-```bash
-python3 parse_url.py "https://www.sinyi.com.tw/buy/list/Hsinchu-city"
-```
-
-輸出：
-
-```
-判斷為【信義】的網址，解析結果（可以直接複製貼進 config.py 的 SINYI 清單裡）：
-
-    {
-        'region': 'Hsinchu-city',
-        'min_rooms': 2,  # 記得確認房數門檻要設多少，不限就設 None
-    },
-
-⚠️ 提醒：信義只能篩到縣市層級，抓到的會是整個縣市範圍，不會只有你想要的區。
-```
+編輯 `config.py`，修改 `HOUSE_591`、`YUNGCHING`、`SINYI` 三組設定（預設為新竹市東區）。地區代碼與參數格式、網址解析工具（`parse_url.py`）使用範例，請參考 [`SITES_REFERENCE.md`](SITES_REFERENCE.md)。
 
 ### 執行
 
