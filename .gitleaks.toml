@@ -1,0 +1,19 @@
+# gitleaks設定：繼承官方預設規則，額外補上這個專案會用到的機密格式。
+# 官方預設規則庫其實沒有涵蓋Telegram Bot Token的格式，實測驗證過
+# (用符合格式的假token測試，預設規則沒攔截到)，所以額外自己加規則。
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "telegram-bot-token"
+description = "Telegram Bot Token (格式：數字:35碼英數字底線減號)"
+regex = '''[0-9]{8,10}:[A-Za-z0-9_-]{35}'''
+tags = ["telegram", "secret"]
+
+[[rules]]
+id = "telegram-chat-id-in-secret-file"
+description = "telegram_secret.json 裡的 chat_id 欄位有值（應該只有example檔案會被追蹤，不該出現實際數字）"
+regex = '''"chat_id"\s*:\s*"[0-9]{5,}"'''
+path = '''telegram_secret\.json$'''
+tags = ["telegram", "secret"]
