@@ -64,12 +64,29 @@ const SpreadsheetApp = {
   }),
 };
 
-// ---- UrlFetchApp：真的用curl打591/Telegram的API ----
+// ---- UrlFetchApp：591/永慶/信義用真的curl打API；Telegram預設攔截、不會真的發送 ----
+// 這支測試工具用的Sheet只存在記憶體裡、跑完就消失，不會存回seen_houses.json或真的Sheet，
+// 所以如果Telegram照樣真的送出，跑幾次測試就會誤發幾次重複通知(這裡發生過一次，教訓)。
+// 真的需要測試Telegram實際送達，執行前加環境變數：SEND_REAL_TELEGRAM=1 node test_harness.js
+const SEND_REAL_TELEGRAM = process.env.SEND_REAL_TELEGRAM === '1';
+if (!SEND_REAL_TELEGRAM) {
+  console.log('ℹ️ Telegram發送已攔截(不會真的送出)。要測試真的送達，執行前加 SEND_REAL_TELEGRAM=1。');
+}
+
 const UrlFetchApp = {
   fetch: (url, options) => {
     options = options || {};
     const method = (options.method || 'get').toLowerCase();
     const headers = options.headers || {};
+
+    if (!SEND_REAL_TELEGRAM && url.indexOf('https://api.telegram.org/') === 0) {
+      console.log('  [攔截] 沒有真的發送 Telegram: ' + url.replace(/\/bot[^/]+\//, '/bot***/'));
+      return {
+        getResponseCode: () => 200,
+        getContentText: () => JSON.stringify({ ok: true, result: { message_id: 0 } }),
+      };
+    }
+
     const args = ['-s', '-w', '\n___HTTP_CODE___%{http_code}'];
     if (method === 'post') {
       args.push('-X', 'POST');
