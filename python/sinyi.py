@@ -28,13 +28,21 @@ FILTER_PARAM_MAP = [
     ("type", "-type"),
     ("price", "-price"),
     ("rooms", "-roomtotal"),
-    ("zip", "-zip"),
 ]
+
+# 車位不是「值+後綴」的格式，勾選「有車位」時網站會把全部子類型湊成一長串固定字串，
+# 這裡直接照抄那串固定值，不逐一拆解子類型。
+PARKING_YES_SEGMENT = "plane-auto-mix-mechanical-firstfloor-tower-other-yesparking"
+PARKING_NO_SEGMENT = "noparking"
 
 
 def _build_filter_segments(target):
     """依target dict組出信義網址的篩選路徑片段（不含地區、不含排序/頁碼）。沒設定的欄位不會出現在網址裡。"""
-    return [f"{target[key]}{suffix}" for key, suffix in FILTER_PARAM_MAP if target.get(key)]
+    segments = [f"{target[key]}{suffix}" for key, suffix in FILTER_PARAM_MAP if target.get(key)]
+    has_parking = target.get("has_parking")
+    if has_parking is not None:
+        segments.append(PARKING_YES_SEGMENT if has_parking else PARKING_NO_SEGMENT)
+    return segments
 
 
 def fetch_page(region, page, filter_segments=None):

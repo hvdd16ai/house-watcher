@@ -37,10 +37,11 @@ const HOUSE_591 = [
     price: null,               // 總價區間(萬)，格式 "最低_最高"，例如 "0_750"。不限就設 null
     area: null,                 // 坪數區間，格式 "$最低_$最高"，例如 "$30_$50"。不限就設 null
     pattern: '2,3,4,5',          // 房數，逗號分隔多選，"2,3,4,5"代表2房以上。不限就設 null
-    label: null,                   // 勾選條件，逗號分隔ID字串。目前只抓到部分組合，先設 null
+    houseage: null,                // 屋齡(年)，格式 "最低_最高"，例如 "0_5" = 5年以下。不限就設 null
+    parking: null,                   // 車位類型，逗號分隔數字，目前只驗證過1=平面式、2=機械式。不限就設 null
   },
   // 想再搜別的縣市，複製一組上面的物件、改regionid/sectionid即可，例如：
-  // { regionid: 1, sectionid: 47, type: 2, shape: 2, price: null, area: null, pattern: '2,3,4,5', label: null },
+  // { regionid: 1, sectionid: 47, type: 2, shape: 2, price: null, area: null, pattern: '2,3,4,5', houseage: null, parking: null },
 ];
 
 const HOUSE_591_MAX_PAGES = 5;  // 最多往前抓幾頁（用「早停」邏輯，通常用不到這麼多）
@@ -82,12 +83,12 @@ const SINYI = [
 
     // 以下是信義網址上的原生篩選條件，格式對照 CONFIG_DETAIL.md 的「信義房屋參數對照」表，
     // 不用可以全部留 null，不影響其他設定。
-    type: null,   // 型態，拼音值，目前只驗證過 "dalou"(大樓)，其他型態代碼未確認
-    price: null,  // 總價，格式 "最低-up"，例如 "1000-up" = 1000萬以上
-    rooms: null,  // 房數，格式同總價，例如 "2-up" = 2房以上（跟上面的min_rooms是兩回事，見上方說明）
-    zip: null,    // 郵遞區號，例如 "300"(新竹市)。實測對縣市級搜尋沒有限縮效果，意義未完全確認，不建議依賴
+    type: null,         // 型態，拼音值，目前只驗證過 "dalou"(大樓)，其他型態代碼未確認
+    price: null,        // 總價，格式 "最低-up"，例如 "1000-up" = 1000萬以上
+    rooms: null,        // 房數，格式同總價，例如 "2-up" = 2房以上（跟上面的min_rooms是兩回事，見上方說明）
+    has_parking: null,  // 車位：true=有車位、false=無車位、null=不限
   },
-  // { region: 'Taipei-city', min_rooms: 2, type: null, price: null, rooms: null, zip: null },
+  // { region: 'Taipei-city', min_rooms: 2, type: null, price: null, rooms: null, has_parking: null },
 ];
 
 const SINYI_MAX_PAGES = 5;
@@ -497,8 +498,12 @@ const SINYI_FILTER_PARAM_MAP = [
   ['type', '-type'],
   ['price', '-price'],
   ['rooms', '-roomtotal'],
-  ['zip', '-zip'],
 ];
+
+// 車位不是「值+後綴」的格式，勾選「有車位」時網站會把全部子類型湊成一長串固定字串，
+// 這裡直接照抄那串固定值，不逐一拆解子類型。
+const SINYI_PARKING_YES_SEGMENT = 'plane-auto-mix-mechanical-firstfloor-tower-other-yesparking';
+const SINYI_PARKING_NO_SEGMENT = 'noparking';
 
 function sinyiBuildFilterSegments_(target) {
   const segments = [];
@@ -506,6 +511,9 @@ function sinyiBuildFilterSegments_(target) {
     const value = target[pair[0]];
     if (value) segments.push(value + pair[1]);
   });
+  if (target.has_parking !== null && target.has_parking !== undefined) {
+    segments.push(target.has_parking ? SINYI_PARKING_YES_SEGMENT : SINYI_PARKING_NO_SEGMENT);
+  }
   return segments;
 }
 

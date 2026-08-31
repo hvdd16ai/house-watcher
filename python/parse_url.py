@@ -13,7 +13,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 def parse_591(url):
     query = urlparse(url).query
     params = parse_qs(query)
-    fields = ["regionid", "sectionid", "type", "shape", "price", "area", "pattern", "label"]
+    fields = ["regionid", "sectionid", "type", "shape", "price", "area", "pattern", "houseage", "parking"]
     int_fields = {"regionid", "sectionid", "type", "shape"}
 
     result = {}
@@ -85,8 +85,11 @@ SINYI_SUFFIX_MAP = [
     ("-type", "type"),
     ("-price", "price"),
     ("-roomtotal", "rooms"),
-    ("-zip", "zip"),
 ]
+
+# 車位不是「值+後綴」格式，是兩個固定值，比對這兩個對照 sinyi.py 的說明
+SINYI_PARKING_YES_SEGMENT = "plane-auto-mix-mechanical-firstfloor-tower-other-yesparking"
+SINYI_PARKING_NO_SEGMENT = "noparking"
 
 
 def parse_sinyi(url):
@@ -98,7 +101,14 @@ def parse_sinyi(url):
     segments = [s for s in m.group(2).split("/") if s and s != "default-desc" and not s.isdigit()]
 
     extra = {field: None for _, field in SINYI_SUFFIX_MAP}
+    has_parking = None
     for seg in segments:
+        if seg == SINYI_PARKING_YES_SEGMENT:
+            has_parking = True
+            continue
+        if seg == SINYI_PARKING_NO_SEGMENT:
+            has_parking = False
+            continue
         for suffix, field in SINYI_SUFFIX_MAP:
             if seg.endswith(suffix):
                 extra[field] = seg[: -len(suffix)]
@@ -111,6 +121,7 @@ def parse_sinyi(url):
     ]
     for _, field in SINYI_SUFFIX_MAP:
         lines.append(f"        {field!r}: {extra[field]!r},")
+    lines.append(f"        'has_parking': {has_parking!r},")
     lines.append("    },")
     return "\n".join(lines), "⚠️ 提醒：信義只能篩到縣市層級，抓到的會是整個縣市範圍，不會只有你想要的區。"
 

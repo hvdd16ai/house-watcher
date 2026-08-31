@@ -17,7 +17,7 @@ function parse591Url_(url) {
     if (k) params[decodeURIComponent(k)] = decodeURIComponent(v || '');
   });
 
-  const fields = ['regionid', 'sectionid', 'type', 'shape', 'price', 'area', 'pattern', 'label'];
+  const fields = ['regionid', 'sectionid', 'type', 'shape', 'price', 'area', 'pattern', 'houseage', 'parking'];
   const intFields = ['regionid', 'sectionid', 'type', 'shape'];
 
   const result = {};
@@ -107,8 +107,11 @@ const SINYI_PARSE_SUFFIX_MAP = [
   ['-type', 'type'],
   ['-price', 'price'],
   ['-roomtotal', 'rooms'],
-  ['-zip', 'zip'],
 ];
+
+// 車位不是「值+後綴」格式，是兩個固定值，比對這兩個對照 Code.gs 的說明
+const SINYI_PARSE_PARKING_YES_SEGMENT = 'plane-auto-mix-mechanical-firstfloor-tower-other-yesparking';
+const SINYI_PARSE_PARKING_NO_SEGMENT = 'noparking';
 
 function parseSinyiUrl_(url) {
   const path = url.split('?')[0];
@@ -125,7 +128,16 @@ function parseSinyiUrl_(url) {
 
   const extra = {};
   SINYI_PARSE_SUFFIX_MAP.forEach((pair) => { extra[pair[1]] = null; });
+  let hasParking = null;
   segments.forEach((seg) => {
+    if (seg === SINYI_PARSE_PARKING_YES_SEGMENT) {
+      hasParking = true;
+      return;
+    }
+    if (seg === SINYI_PARSE_PARKING_NO_SEGMENT) {
+      hasParking = false;
+      return;
+    }
     SINYI_PARSE_SUFFIX_MAP.some((pair) => {
       if (seg.endsWith(pair[0])) {
         extra[pair[1]] = seg.slice(0, -pair[0].length);
@@ -144,6 +156,7 @@ function parseSinyiUrl_(url) {
   SINYI_PARSE_SUFFIX_MAP.forEach((pair) => {
     lines.push('    ' + pair[1] + ': ' + litOf(extra[pair[1]]) + ',');
   });
+  lines.push('    has_parking: ' + (hasParking === null ? 'null' : hasParking) + ',');
   lines.push('  },');
   return {
     text: lines.join('\n'),

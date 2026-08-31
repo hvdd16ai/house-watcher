@@ -39,12 +39,14 @@ HOUSE_591 = [
         # 房數，逗號分隔多選，例如 "2,3,4,5" 代表2房以上（勾選2/3/4/5房及以上）。不限就設 None
         "pattern": "2,3,4,5",
 
-        # 勾選條件（含車位/有陽台/近捷運站...），逗號分隔的ID字串。
-        # 目前只抓到部分組合、還沒完全拆解每個ID對應哪個條件，先設 None，之後要用再細抓。
-        "label": None,
+        # 屋齡(年)，格式 "最低_最高"，例如 "0_5" = 5年以下、"5_10" = 5~10年。不限就設 None
+        "houseage": None,
+
+        # 車位類型，逗號分隔數字，目前只驗證過 1=平面式、2=機械式（其他代碼未測，要用再自己到網站上點選比對）。不限就設 None
+        "parking": None,
     },
     # 想再搜別的縣市，複製一組上面的dict、改regionid/sectionid即可，例如：
-    # {"regionid": 1, "sectionid": 47, "type": 2, "shape": 2, "price": None, "area": None, "pattern": "2,3,4,5", "label": None},
+    # {"regionid": 1, "sectionid": 47, "type": 2, "shape": 2, "price": None, "area": None, "pattern": "2,3,4,5", "houseage": None, "parking": None},
 ]
 
 HOUSE_591_MAX_PAGES = 5  # 最多往前抓幾頁（用「早停」邏輯，通常用不到這麼多）
@@ -87,12 +89,12 @@ SINYI = [
 
         # 以下是信義網址上的原生篩選條件，格式對照 CONFIG_DETAIL.md 的「信義房屋參數對照」表，
         # 不用可以全部留 None，不影響其他設定。
-        "type": None,   # 型態，拼音值，目前只驗證過 "dalou"(大樓)，其他型態代碼未確認
-        "price": None,  # 總價，格式 "最低-up"，例如 "1000-up" = 1000萬以上
-        "rooms": None,  # 房數，格式同總價，例如 "2-up" = 2房以上（跟上面的min_rooms是兩回事，見上方說明）
-        "zip": None,    # 郵遞區號，例如 "300"(新竹市)。實測對縣市級搜尋沒有限縮效果，意義未完全確認，不建議依賴
+        "type": None,         # 型態，拼音值，目前只驗證過 "dalou"(大樓)，其他型態代碼未確認
+        "price": None,        # 總價，格式 "最低-up"，例如 "1000-up" = 1000萬以上
+        "rooms": None,        # 房數，格式同總價，例如 "2-up" = 2房以上（跟上面的min_rooms是兩回事，見上方說明）
+        "has_parking": None,  # 車位：True=有車位、False=無車位、None=不限
     },
-    # {"region": "Taipei-city", "min_rooms": 2, "type": None, "price": None, "rooms": None, "zip": None},
+    # {"region": "Taipei-city", "min_rooms": 2, "type": None, "price": None, "rooms": None, "has_parking": None},
 ]
 
 SINYI_MAX_PAGES = 5
