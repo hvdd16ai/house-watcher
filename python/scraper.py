@@ -66,8 +66,20 @@ def find_new_listings(items, seen):
     return new_items
 
 
+def _same_unit(item, old_record):
+    """判斷這次抓到的物件跟舊紀錄是不是「同一戶」(地址+坪數+格局都要一樣，價格不算)。
+    591/永慶的houseid在物件下架一段時間後，平台可能回收挪給全新、不相關的物件用，
+    這種情況地址/坪數/格局會對不上，不該當成「降價」，只是剛好號碼被回收重複用而已。
+    """
+    return (
+        item.get("address") == old_record.get("address")
+        and item.get("area") == old_record.get("area")
+        and item.get("room") == old_record.get("room")
+    )
+
+
 def find_price_drops(items, seen):
-    """比對這次抓到的物件(不論新舊)跟seen裡記錄的價格，抓出降價的物件。
+    """比對這次抓到的物件(不論新舊)跟seen裡記錄的價格，抓出「同一戶」降價的物件。
     回傳 [(item, old_price), ...]。只有這次剛好被抓到、且總價比記錄的低才算，
     不保證每次降價都能抓到(取決於排序有沒有把它推回抓取範圍內)。
     """
@@ -76,6 +88,8 @@ def find_price_drops(items, seen):
         old_record = seen.get(item["key"])
         if old_record is None:
             continue
+        if not _same_unit(item, old_record):
+            continue  # key被平台回收挪給別的物件了，不是同一戶，不算降價
         old_price = old_record.get("price")
         new_price = item.get("price")
         if old_price is not None and new_price is not None and new_price < old_price:

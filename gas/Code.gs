@@ -733,7 +733,19 @@ function findDuplicates_(newItems, contentIndex) {
 }
 
 /**
- * 比對這次抓到的物件(不論新舊)跟Sheet裡記錄的價格，抓出降價的物件。
+ * 判斷這次抓到的物件跟舊紀錄是不是「同一戶」(地址+坪數+格局都要一樣，價格不算)。
+ * 591/永慶的houseid在物件下架一段時間後，平台可能回收挪給全新、不相關的物件用，
+ * 這種情況地址/坪數/格局會對不上，不該當成「降價」，只是剛好號碼被回收重複用而已。
+ */
+function isSameUnit_(item, oldRecord) {
+  // 用String()轉型再比較，避免Sheet讀出來的數字型別跟剛抓到的物件對不起來(例如area)。
+  return String(item.address) === String(oldRecord.address)
+    && String(item.area) === String(oldRecord.area)
+    && String(item.room) === String(oldRecord.room);
+}
+
+/**
+ * 比對這次抓到的物件(不論新舊)跟Sheet裡記錄的價格，抓出「同一戶」降價的物件。
  * 回傳 [{item, oldPrice}, ...]。只有這次剛好被抓到、且總價比記錄的低才算，
  * 不保證每次降價都能抓到(取決於排序有沒有把它推回抓取範圍內)。
  */
@@ -742,6 +754,7 @@ function findPriceDrops_(items, seenRecords) {
   items.forEach((item) => {
     const oldRecord = seenRecords[item.key];
     if (!oldRecord) return;
+    if (!isSameUnit_(item, oldRecord)) return; // key被平台回收挪給別的物件了，不是同一戶，不算降價
     const oldPrice = oldRecord.price;
     const newPrice = item.price;
     if (oldPrice === '' || oldPrice === null || oldPrice === undefined) return;
