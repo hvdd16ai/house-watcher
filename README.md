@@ -30,7 +30,7 @@
 
 ## 運作原理
 
-1. 依排程週期（預設每 2 小時）向三個平台請求符合設定條件的最新物件列表
+1. 依排程週期向三個平台請求符合設定條件的最新物件列表（Python 版由使用者自行於 crontab 設定；GAS 版 `setupTrigger()` 預設每 2 小時，可自行修改）
 2. 比對本地／雲端資料庫中已通知過的物件紀錄，篩選出尚未出現過的物件
 3. 將新物件透過 Telegram Bot 推播通知，並寫入資料庫供下次比對使用
 
@@ -112,7 +112,64 @@ cp telegram_secret.example.json telegram_secret.json
 python3 parse_url.py "<平台搜尋結果網址>"
 ```
 
-程式會輸出可直接貼入 `config.py` 的設定內容。
+範例（591 新竹市東區搜尋結果網址）：
+
+```bash
+python3 parse_url.py "https://sale.591.com.tw/list?regionid=4&sectionid=371&type=2&shape=2&pattern=2,3,4,5"
+```
+
+輸出：
+
+```
+判斷為【591】的網址，解析結果（可以直接複製貼進 config.py 的 HOUSE_591 清單裡）：
+
+    {
+        'regionid': 4,
+        'sectionid': 371,
+        'type': 2,
+        'shape': 2,
+        'price': None,
+        'area': None,
+        'pattern': '2,3,4,5',
+        'label': None,
+    },
+```
+
+複製 `{...}` 這一段貼進 `config.py` 的 `HOUSE_591` 清單裡即可。
+
+永慶／信義的網址也用同一支工具，會自動判斷網站並輸出對應格式：
+
+```bash
+python3 parse_url.py "https://buy.yungching.com.tw/list/新竹市-東區_c/new_filter"
+```
+
+輸出：
+
+```
+判斷為【永慶】的網址，解析結果（可以直接複製貼進 config.py 的 YUNGCHING 清單裡）：
+
+    {
+        'region': '新竹市-東區',
+        'min_rooms': 2,  # 記得確認房數門檻要設多少，不限就設 None
+    },
+```
+
+```bash
+python3 parse_url.py "https://www.sinyi.com.tw/buy/list/Hsinchu-city"
+```
+
+輸出：
+
+```
+判斷為【信義】的網址，解析結果（可以直接複製貼進 config.py 的 SINYI 清單裡）：
+
+    {
+        'region': 'Hsinchu-city',
+        'min_rooms': 2,  # 記得確認房數門檻要設多少，不限就設 None
+    },
+
+⚠️ 提醒：信義只能篩到縣市層級，抓到的會是整個縣市範圍，不會只有你想要的區。
+```
 
 ### 執行
 
@@ -130,7 +187,7 @@ python3 scraper.py
 crontab -e
 ```
 
-新增以下內容（路徑需替換為實際安裝位置，範例為每 2 小時執行一次）：
+新增以下內容（範例為每 2 小時執行一次，⚠️ **路徑需替換為實際安裝位置**）：
 
 ```
 0 */2 * * * /usr/bin/python3 /absolute/path/house-watcher/python/scraper.py >> /absolute/path/house-watcher/python/cron.log 2>&1
@@ -241,4 +298,4 @@ house-watcher/
 
 ## 使用限制與聲明
 
-本工具僅整理、比對各平台公開網頁資訊並提供個人化通知，供個人使用。請使用者自行評估各平台服務條款之適用性；預設抓取頻率（每 2 小時）已考量對來源平台之負擔，請避免調整為高頻率請求，亦不得用於商業用途。
+本工具僅整理、比對各平台公開網頁資訊並提供個人化通知，供個人使用。請使用者自行評估各平台服務條款之適用性；建議抓取頻率維持在 2 小時以上（GAS 版預設即為 2 小時），已考量對來源平台之負擔，請避免調整為高頻率請求，亦不得用於商業用途。
